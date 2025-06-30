@@ -26,12 +26,26 @@ def collection_name():
     return "test_table_schema"
 
 
+@pytest.fixture(scope="session")
+def embedding_model():
+    """嵌入模型名称"""
+    return "nomic-embed-text:latest"
+
+
+@pytest.fixture(scope="session")
+def embedding_dimension():
+    """嵌入向量维度"""
+    return 768
+
+
 @pytest.fixture(scope="function")
-def milvus_rag(milvus_uri, collection_name):
+def milvus_rag(milvus_uri, collection_name, embedding_model, embedding_dimension):
     """创建Milvus RAG实例"""
     rag = MilvusRAG(
         collection_name=collection_name,
-        uri=milvus_uri
+        uri=milvus_uri,
+        embedding_model=embedding_model,
+        embedding_dimension=embedding_dimension
     )
     
     # 确保集合存在
@@ -82,7 +96,7 @@ def sample_table_data():
 
 
 @pytest.fixture(scope="function")
-def random_embedding():
+def random_embedding(embedding_dimension):
     """生成随机向量嵌入"""
     import numpy as np
-    return list(np.random.rand(1536)) 
+    return list(np.random.rand(embedding_dimension)) 

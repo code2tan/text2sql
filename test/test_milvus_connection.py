@@ -55,4 +55,4 @@ class TestMilvusConfiguration:
     
     def test_milvus_dimension(self, milvus_rag):
         """测试向量维度配置"""
-        assert milvus_rag.dimension == 1536  # OpenAI text-embedding-ada-002 维度 
+        assert milvus_rag.dimension == 768  # nomic-embed-text 维度 

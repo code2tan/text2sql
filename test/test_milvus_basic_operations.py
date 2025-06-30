@@ -7,6 +7,8 @@ import hashlib
 
 import pytest
 
+from db.milvus import MilvusRAG
+
 
 class TestMilvusBasicOperations:
     """Milvus基础操作测试类"""
@@ -38,48 +40,28 @@ class TestMilvusBasicOperations:
             collection_name=milvus_rag.collection_name,
             data=[{
                 "id": table_id,
-                "embedding": random_embedding,
-                "table_info": table_info,
-                "description": description,
-                "table_name": table_name
+                "vector": random_embedding
             }]
         )
         
         # 验证插入成功
         tables = milvus_rag.get_all_tables()
-        assert table_name in tables
+        assert table_id in tables
     
     def test_insert_multiple_tables(self, milvus_rag, sample_table_data, random_embedding):
         """测试插入多个表结构"""
         inserted_tables = []
         
         for table_name, table_info in sample_table_data.items():
-            # 生成数字ID
+            # 生成数字ID - 确保唯一性
             table_id = int(hashlib.md5(table_name.encode()).hexdigest()[:8], 16)
-            
-            # 构建描述文本
-            description = f"表名: {table_name}\n"
-            description += f"描述: {table_info.get('description', '')}\n"
-            description += "列信息:\n"
-            
-            for col in table_info["columns"]:
-                col_name = col["name"]
-                col_type = col["type"]
-                col_comment = col.get("comment", "")
-                description += f"- {col_name} ({col_type})"
-                if col_comment:
-                    description += f": {col_comment}"
-                description += "\n"
             
             # 插入到Milvus
             milvus_rag.milvus.insert(
                 collection_name=milvus_rag.collection_name,
                 data=[{
                     "id": table_id,
-                    "embedding": random_embedding,
-                    "table_info": table_info,
-                    "description": description,
-                    "table_name": table_name
+                    "vector": random_embedding
                 }]
             )
             inserted_tables.append(table_name)
@@ -87,7 +69,8 @@ class TestMilvusBasicOperations:
         # 验证所有表都插入成功
         tables = milvus_rag.get_all_tables()
         for table_name in inserted_tables:
-            assert table_name in tables
+            table_id = int(hashlib.md5(table_name.encode()).hexdigest()[:8], 16)
+            assert table_id in tables
     
     def test_search_functionality(self, milvus_rag, random_embedding):
         """测试搜索功能"""
@@ -96,8 +79,7 @@ class TestMilvusBasicOperations:
             collection_name=milvus_rag.collection_name,
             data=[random_embedding],
             top_k=5,
-            metric_type="COSINE",
-            output_fields=["table_info", "description", "table_name"]
+            metric_type="COSINE"
         )
         
         # 验证搜索结果格式
@@ -107,10 +89,10 @@ class TestMilvusBasicOperations:
     
     def test_query_functionality(self, milvus_rag):
         """测试查询功能"""
-        # 查询所有表名
+        # 查询所有表ID
         results = milvus_rag.milvus.query(
             collection_name=milvus_rag.collection_name,
-            output_fields=["table_name"],
+            output_fields=["id"],
             limit=1000
         )
         
@@ -140,9 +122,9 @@ class TestMilvusDataValidation:
         assert isinstance(table_id, int)
         assert table_id > 0
     
-    def test_embedding_dimension(self, random_embedding):
+    def test_embedding_dimension(self, random_embedding, embedding_dimension):
         """测试向量维度"""
-        assert len(random_embedding) == 1536
+        assert len(random_embedding) == embedding_dimension
         assert all(isinstance(x, (int, float)) for x in random_embedding)
     
     def test_table_info_structure(self, sample_table_data):

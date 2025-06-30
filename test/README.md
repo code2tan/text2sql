@@ -32,13 +32,13 @@ test/
 - **目的**: 测试完整的RAG功能
 - **范围**: 向量嵌入、相似性搜索、批量操作
 - **标记**: 集成测试
-- **依赖**: 需要Milvus服务和OpenAI API Key
+- **依赖**: 需要Milvus服务和Ollama服务
 
 ## 运行测试
 
 ### 安装依赖
 ```bash
-pip install pytest pytest-cov
+pip install pytest pytest-cov ollama
 ```
 
 ### 运行所有测试
@@ -83,12 +83,15 @@ pytest --cov=db --cov-report=html
 ### 必需服务
 1. **Milvus服务**: 运行在 `http://localhost:19530`
 2. **Docker**: 用于启动Milvus服务
+3. **Ollama服务**: 运行在 `http://localhost:11434`
 
 ### 可选服务
-1. **OpenAI API**: 用于RAG功能测试
-   - 设置环境变量: `OPENAI_API_KEY=your_api_key`
+1. **nomic-embed-text模型**: 用于生成向量嵌入
+   - 下载模型: `ollama pull nomic-embed-text:latest`
 
-### 启动Milvus服务
+### 启动服务
+
+#### Milvus服务
 ```bash
 # 使用Docker Compose
 docker-compose up -d
@@ -98,6 +101,15 @@ docker run -d --name milvus-standalone \
   -p 19530:19530 \
   -p 9091:9091 \
   milvusdb/milvus:v2.3.3 milvus run standalone
+```
+
+#### Ollama服务
+```bash
+# 启动Ollama服务
+ollama serve
+
+# 下载nomic-embed-text模型
+ollama pull nomic-embed-text:latest
 ```
 
 ## 测试数据
@@ -110,7 +122,7 @@ docker run -d --name milvus-standalone \
 - `products`: 产品表
 
 ### 向量数据
-- 维度: 1536 (OpenAI text-embedding-ada-002)
+- 维度: 768 (nomic-embed-text模型)
 - 类型: 浮点数列表
 
 ## 故障排除
@@ -126,13 +138,16 @@ docker run -d --name milvus-standalone \
    docker logs milvus-standalone
    ```
 
-2. **OpenAI API错误**
+2. **Ollama连接失败**
    ```bash
-   # 检查API Key
-   echo $OPENAI_API_KEY
+   # 检查服务状态
+   ps aux | grep ollama
    
-   # 设置API Key
-   export OPENAI_API_KEY=your_api_key
+   # 启动服务
+   ollama serve
+   
+   # 检查模型
+   ollama list
    ```
 
 3. **测试超时**
@@ -171,6 +186,8 @@ class TestNewFeature:
 - `milvus_rag`: Milvus RAG实例
 - `sample_table_data`: 示例表数据
 - `random_embedding`: 随机向量
+- `embedding_model`: 嵌入模型名称
+- `embedding_dimension`: 嵌入向量维度
 
 ### 3. 添加标记
 ```python
@@ -199,10 +216,31 @@ jobs:
         image: milvusdb/milvus:v2.3.3
         ports:
           - 19530:19530
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
     steps:
       - uses: actions/checkout@v2
+      - name: Setup Ollama
+        run: |
+          curl -fsSL https://ollama.ai/install.sh | sh
+          ollama pull nomic-embed-text:latest
       - name: Run tests
         run: |
           pip install -r requirements.txt
           pytest
-``` 
+```
+
+## 模型配置
+
+### nomic-embed-text模型
+- **模型名称**: `nomic-embed-text:latest`
+- **向量维度**: 768
+- **用途**: 生成文本的向量嵌入
+- **特点**: 本地运行，无需网络连接
+
+### 其他可选模型
+- `all-MiniLM-L6-v2`: 384维向量
+- `all-mpnet-base-v2`: 768维向量
+- `text-embedding-ada-002`: 1536维向量（需要OpenAI API） 

@@ -2,8 +2,8 @@ import os
 from typing import List, Dict, Any
 
 from dotenv import load_dotenv
-from openai import OpenAI
 from pymilvus import MilvusClient
+from pymilvus import CollectionSchema, FieldSchema, DataType
 
 load_dotenv()
 
@@ -12,7 +12,9 @@ class MilvusRAG:
     
     def __init__(self, collection_name: str = "table_schema", 
                  uri: str = "http://localhost:19530", 
-                 token: str | None = None):
+                 token: str | None = None,
+                 embedding_model: str = "nomic-embed-text:latest",
+                 embedding_dimension: int = 768):
         """
         初始化Milvus Lite RAG系统
         
@@ -20,10 +22,14 @@ class MilvusRAG:
             collection_name: 集合名称
             uri: Milvus服务地址，默认为本地Docker
             token: 认证token（如果有的话）
+            embedding_model: 嵌入模型名称，默认为nomic-embed-text:latest
+            embedding_dimension: 嵌入向量维度，nomic-embed-text默认为768
         """
         self.collection_name = collection_name
         self.uri = uri
         self.token = token
+        self.embedding_model = embedding_model
+        self.dimension = embedding_dimension
         
         # 初始化Milvus客户端
         if token:
@@ -31,21 +37,46 @@ class MilvusRAG:
         else:
             self.milvus = MilvusClient(uri=uri)
             
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.dimension = 1536  # OpenAI text-embedding-ada-002 维度
+        # 初始化Ollama客户端（用于本地embedding）
+        try:
+            from ollama import Client
+            self.ollama_client = Client(host='http://localhost:11434')
+        except ImportError:
+            print("警告: 未安装ollama包，请运行: pip install ollama")
+            self.ollama_client = None
         
     def create_collection(self):
         """创建向量集合"""
         try:
-            # 创建集合
+            # 使用Milvus 2.6.0的简单API创建集合
             self.milvus.create_collection(
                 collection_name=self.collection_name,
                 dimension=self.dimension,
                 metric_type="COSINE"
             )
             print(f"集合 {self.collection_name} 创建成功")
+            
+            # 创建后立即加载集合
+            self.load_collection()
         except Exception as e:
             print(f"集合已存在或创建失败: {e}")
+    
+    def load_collection(self):
+        """加载集合到内存"""
+        try:
+            self.milvus.load_collection(self.collection_name)
+            print(f"集合 {self.collection_name} 已加载")
+        except Exception as e:
+            print(f"加载集合失败: {e}")
+    
+    def ensure_collection_loaded(self):
+        """确保集合已加载"""
+        try:
+            # 直接尝试加载集合，如果已加载会忽略
+            self.load_collection()
+        except Exception as e:
+            # 如果加载失败，可能是集合不存在或其他问题
+            print(f"确保集合加载时出错: {e}")
     
     def get_embedding(self, text: str) -> List[float]:
         """
@@ -58,11 +89,15 @@ class MilvusRAG:
             向量嵌入
         """
         try:
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text
+            if self.ollama_client is None:
+                raise Exception("Ollama客户端未初始化")
+            
+            # 使用Ollama获取embedding
+            response = self.ollama_client.embeddings(
+                model=self.embedding_model,
+                prompt=text
             )
-            return response.data[0].embedding
+            return response['embedding']
         except Exception as e:
             print(f"获取嵌入失败: {e}")
             raise
@@ -103,15 +138,12 @@ class MilvusRAG:
             import hashlib
             table_id = int(hashlib.md5(table_name.encode()).hexdigest()[:8], 16)
             
-            # 插入到Milvus
+            # 插入到Milvus - 只使用默认字段
             self.milvus.insert(
                 collection_name=self.collection_name,
                 data=[{
                     "id": table_id,
-                    "embedding": embedding,
-                    "table_info": table_info,
-                    "description": description,
-                    "table_name": table_name  # 添加表名字段用于查询
+                    "vector": embedding
                 }]
             )
             
@@ -134,6 +166,9 @@ class MilvusRAG:
             相似的表结构信息列表
         """
         try:
+            # 确保集合已加载
+            self.ensure_collection_loaded()
+            
             # 获取查询的向量嵌入
             query_embedding = self.get_embedding(query)
             
@@ -142,22 +177,18 @@ class MilvusRAG:
                 collection_name=self.collection_name,
                 data=[query_embedding],
                 top_k=top_k,
-                metric_type="COSINE",
-                output_fields=["table_info", "description"]
+                metric_type="COSINE"
             )
             
-            # 处理搜索结果 - 修复结果处理方式
+            # 处理搜索结果 - 只返回ID和相似度分数
             similar_tables = []
             for result in results[0]:
-                # Milvus Lite返回的结果格式不同
-                table_info = result.get("table_info")
+                table_id = result.get("id")
                 similarity_score = result.get("score", 0.0)
-                description = result.get("description", "")
                 
                 similar_tables.append({
-                    "table_info": table_info,
-                    "similarity_score": similarity_score,
-                    "description": description
+                    "table_id": table_id,
+                    "similarity_score": similarity_score
                 })
             
             return similar_tables
@@ -194,25 +225,28 @@ class MilvusRAG:
             print(f"批量插入失败: {e}")
             return False
     
-    def get_all_tables(self) -> List[str]:
+    def get_all_tables(self) -> List[int]:
         """
-        获取所有已存储的表名
+        获取所有已存储的表ID
         
         Returns:
-            表名列表
+            表ID列表
         """
         try:
+            # 确保集合已加载
+            self.ensure_collection_loaded()
+            
             # 获取集合中的所有数据
             results = self.milvus.query(
                 collection_name=self.collection_name,
-                output_fields=["table_name"],
+                output_fields=["id"],
                 limit=1000  # 添加limit参数
             )
             
-            return [result["table_name"] for result in results]
+            return [result["id"] for result in results]
             
         except Exception as e:
-            print(f"获取表名列表失败: {e}")
+            print(f"获取表ID列表失败: {e}")
             return []
     
     def delete_collection(self):
@@ -225,7 +259,9 @@ class MilvusRAG:
 
 def create_milvus_rag(collection_name: str = "table_schema", 
                      uri: str = "http://localhost:19530",
-                     token: str | None = None) -> MilvusRAG:
+                     token: str | None = None,
+                     embedding_model: str = "nomic-embed-text:latest",
+                     embedding_dimension: int = 768) -> MilvusRAG:
     """
     创建Milvus Lite RAG实例
     
@@ -233,16 +269,22 @@ def create_milvus_rag(collection_name: str = "table_schema",
         collection_name: 集合名称
         uri: Milvus服务地址
         token: 认证token
+        embedding_model: 嵌入模型名称
+        embedding_dimension: 嵌入向量维度
         
     Returns:
         MilvusLiteRAG实例
     """
-    return MilvusRAG(collection_name, uri, token)
+    return MilvusRAG(collection_name, uri, token, embedding_model, embedding_dimension)
 
 if __name__ == "__main__":
     # 测试Milvus Lite RAG
-    # 使用Docker中的Milvus服务
-    rag = create_milvus_rag(uri="http://localhost:19530")
+    # 使用Docker中的Milvus服务和本地nomic-embed-text模型
+    rag = create_milvus_rag(
+        uri="http://localhost:19530",
+        embedding_model="nomic-embed-text:latest",
+        embedding_dimension=768
+    )
     
     # 创建测试数据
     test_schema = {
@@ -275,6 +317,6 @@ if __name__ == "__main__":
     
     print("搜索结果:")
     for result in results:
-        print(f"表名: {result['table_info']['table_name']}")
+        print(f"表名: {result['table_id']}")
         print(f"相似度: {result['similarity_score']:.3f}")
         print("---") 
