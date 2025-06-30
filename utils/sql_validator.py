@@ -1,7 +1,6 @@
 import re
-from typing import Dict, List, Any, Tuple, Optional
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from typing import Dict, List, Any, Optional
+
 
 class SQLValidator:
     """SQL验证器"""
@@ -241,7 +240,7 @@ def create_sql_validator(mysql_connector) -> SQLValidator:
 
 if __name__ == "__main__":
     # 测试SQL验证器
-    from utils.mysql_connector import create_mysql_connector
+    from db.mysql_connector import create_mysql_connector
     
     config = {
         "host": "localhost",

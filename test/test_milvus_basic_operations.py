@@ -3,9 +3,9 @@ Milvus基础操作测试
 测试插入、查询、搜索等基础功能
 """
 
-import pytest
 import hashlib
-from db.milvus import MilvusRAG
+
+import pytest
 
 
 class TestMilvusBasicOperations:

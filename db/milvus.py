@@ -2,8 +2,8 @@ import os
 from typing import List, Dict, Any
 
 from dotenv import load_dotenv
-from pymilvus import MilvusClient
 from openai import OpenAI
+from pymilvus import MilvusClient
 
 load_dotenv()
 

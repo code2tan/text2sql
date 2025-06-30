@@ -3,9 +3,11 @@ Milvus RAG集成测试
 测试完整的RAG功能（需要OpenAI API Key）
 """
 
-import pytest
 import os
 from unittest.mock import Mock, patch
+
+import pytest
+
 from db.milvus import MilvusRAG
 
 

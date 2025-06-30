@@ -7,6 +7,7 @@ Text-to-SQL 系统测试脚本
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -28,7 +29,7 @@ def test_mysql_connector():
     """测试MySQL连接器"""
     print("测试 MySQL 连接器...")
     try:
-        from utils.mysql_connector import create_mysql_connector
+        from db.mysql_connector import create_mysql_connector
         
         config = {
             "host": os.getenv("MYSQL_HOST", "localhost"),
@@ -84,7 +85,7 @@ def test_sql_validator():
     """测试SQL验证器"""
     print("测试 SQL 验证器...")
     try:
-        from utils.mysql_connector import create_mysql_connector
+        from db.mysql_connector import create_mysql_connector
         from utils.sql_validator import create_sql_validator
         
         config = {

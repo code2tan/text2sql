@@ -4,11 +4,11 @@
 用于验证测试结构，不依赖pytest
 """
 
-import sys
-import os
 import importlib
+import os
+import sys
 import traceback
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

@@ -1,8 +1,10 @@
 from pocketflow import Node
-from utils.call_llm import call_llm
-from utils.mysql_connector import create_mysql_connector
+
 from db.milvus import create_milvus_rag
+from db.mysql_connector import create_mysql_connector
+from utils.call_llm import call_llm
 from utils.sql_validator import create_sql_validator
+
 
 class GetQuestionNode(Node):
     def exec(self, _):

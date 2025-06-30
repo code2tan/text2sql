@@ -1,8 +1,9 @@
-import pymysql
 from typing import Dict, List, Any, Optional, Tuple
-from sqlalchemy import create_engine, text, MetaData, inspect
-from sqlalchemy.exc import SQLAlchemyError
 import json
+from typing import Dict, List, Any, Optional, Tuple
+
+from sqlalchemy import create_engine, text, inspect
+
 
 class MySQLConnector:
     """MySQL数据库连接器"""
@@ -191,7 +192,7 @@ if __name__ == "__main__":
         "port": 3306,
         "database": "test_db",
         "user": "root",
-        "password": "password"
+        "password": "123456"
     }
     
     try:
