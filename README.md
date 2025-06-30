@@ -45,9 +45,6 @@ cd text2sql
 ```bash
 # 使用 uv (推荐)
 uv sync
-
-# 或使用 pip
-pip install -r requirements.txt
 ```
 
 ### 3. 启动 Milvus 服务
