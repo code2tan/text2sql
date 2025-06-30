@@ -1,9 +1,7 @@
 from pocketflow import Node
-from typing import Dict, List, Any
-import json
 from utils.call_llm import call_llm
 from utils.mysql_connector import create_mysql_connector
-from utils.milvus_lite import create_milvus_rag
+from db.milvus import create_milvus_rag
 from utils.sql_validator import create_sql_validator
 
 class GetQuestionNode(Node):

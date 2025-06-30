@@ -10,9 +10,9 @@ import os
 import json
 from typing import Dict, Any
 from dotenv import load_dotenv
-from flow import create_text_to_sql_flow, create_simple_text_to_sql_flow
+from flow import create_simple_text_to_sql_flow
 from utils.mysql_connector import create_mysql_connector
-from utils.milvus_lite import create_milvus_rag
+from db.milvus import create_milvus_rag
 
 # 加载环境变量
 load_dotenv()

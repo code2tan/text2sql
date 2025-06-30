@@ -1,25 +1,36 @@
 import os
-from typing import List, Dict, Any, Optional, Tuple
-import numpy as np
-from milvus_lite import MilvusLite
-from openai import OpenAI
+from typing import List, Dict, Any
+
 from dotenv import load_dotenv
-import json
+from pymilvus import MilvusClient
+from openai import OpenAI
 
 load_dotenv()
 
-class MilvusLiteRAG:
+class MilvusRAG:
     """基于Milvus Lite的RAG系统"""
     
-    def __init__(self, collection_name: str = "table_schema"):
+    def __init__(self, collection_name: str = "table_schema", 
+                 uri: str = "http://localhost:19530", 
+                 token: str | None = None):
         """
         初始化Milvus Lite RAG系统
         
         Args:
             collection_name: 集合名称
+            uri: Milvus服务地址，默认为本地Docker
+            token: 认证token（如果有的话）
         """
         self.collection_name = collection_name
-        self.milvus = MilvusLite()
+        self.uri = uri
+        self.token = token
+        
+        # 初始化Milvus客户端
+        if token:
+            self.milvus = MilvusClient(uri=uri, token=token)
+        else:
+            self.milvus = MilvusClient(uri=uri)
+            
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.dimension = 1536  # OpenAI text-embedding-ada-002 维度
         
@@ -88,14 +99,19 @@ class MilvusLiteRAG:
             # 获取向量嵌入
             embedding = self.get_embedding(description)
             
+            # 生成数字ID（使用表名的hash值）
+            import hashlib
+            table_id = int(hashlib.md5(table_name.encode()).hexdigest()[:8], 16)
+            
             # 插入到Milvus
             self.milvus.insert(
                 collection_name=self.collection_name,
                 data=[{
-                    "id": table_name,
+                    "id": table_id,
                     "embedding": embedding,
                     "table_info": table_info,
-                    "description": description
+                    "description": description,
+                    "table_name": table_name  # 添加表名字段用于查询
                 }]
             )
             
@@ -126,19 +142,22 @@ class MilvusLiteRAG:
                 collection_name=self.collection_name,
                 data=[query_embedding],
                 top_k=top_k,
-                metric_type="COSINE"
+                metric_type="COSINE",
+                output_fields=["table_info", "description"]
             )
             
-            # 处理搜索结果
+            # 处理搜索结果 - 修复结果处理方式
             similar_tables = []
             for result in results[0]:
-                table_info = result.entity.get("table_info")
-                similarity_score = result.score
+                # Milvus Lite返回的结果格式不同
+                table_info = result.get("table_info")
+                similarity_score = result.get("score", 0.0)
+                description = result.get("description", "")
                 
                 similar_tables.append({
                     "table_info": table_info,
                     "similarity_score": similarity_score,
-                    "description": result.entity.get("description", "")
+                    "description": description
                 })
             
             return similar_tables
@@ -186,10 +205,11 @@ class MilvusLiteRAG:
             # 获取集合中的所有数据
             results = self.milvus.query(
                 collection_name=self.collection_name,
-                output_fields=["id"]
+                output_fields=["table_name"],
+                limit=1000  # 添加limit参数
             )
             
-            return [result["id"] for result in results]
+            return [result["table_name"] for result in results]
             
         except Exception as e:
             print(f"获取表名列表失败: {e}")
@@ -203,21 +223,26 @@ class MilvusLiteRAG:
         except Exception as e:
             print(f"删除集合失败: {e}")
 
-def create_milvus_rag(collection_name: str = "table_schema") -> MilvusLiteRAG:
+def create_milvus_rag(collection_name: str = "table_schema", 
+                     uri: str = "http://localhost:19530",
+                     token: str | None = None) -> MilvusRAG:
     """
     创建Milvus Lite RAG实例
     
     Args:
         collection_name: 集合名称
+        uri: Milvus服务地址
+        token: 认证token
         
     Returns:
         MilvusLiteRAG实例
     """
-    return MilvusLiteRAG(collection_name)
+    return MilvusRAG(collection_name, uri, token)
 
 if __name__ == "__main__":
     # 测试Milvus Lite RAG
-    rag = create_milvus_rag()
+    # 使用Docker中的Milvus服务
+    rag = create_milvus_rag(uri="http://localhost:19530")
     
     # 创建测试数据
     test_schema = {

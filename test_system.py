@@ -7,7 +7,6 @@ Text-to-SQL 系统测试脚本
 """
 
 import os
-import sys
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -52,7 +51,7 @@ def test_milvus_rag():
     """测试Milvus RAG系统"""
     print("测试 Milvus RAG 系统...")
     try:
-        from utils.milvus_lite import create_milvus_rag
+        from db.milvus import create_milvus_rag
         
         rag = create_milvus_rag()
         
