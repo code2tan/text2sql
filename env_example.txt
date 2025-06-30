@@ -1,0 +1,15 @@
+# 环境变量配置示例
+# 请复制此文件为 .env 并填入实际的配置值
+
+# DeepSeek API配置
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# OpenAI API配置（用于向量嵌入）
+OPENAI_API_KEY=your_openai_api_key_here
+
+# MySQL数据库配置
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=your_database_name
+MYSQL_USER=your_username
+MYSQL_PASSWORD=your_password 
